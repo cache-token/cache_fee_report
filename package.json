@@ -1,0 +1,33 @@
+{
+  "name": "cache_fee_report",
+  "version": "1.0.0",
+  "description": "Generate report of CACHE Gold Token fees paid for list of addresses",
+  "license": "MIT",
+  "bin": {
+    "cache_fee_report": "bin/cache_fee_report"
+  },
+  "homepage": "https://github.com/cache-token/cache_fee_report/blob/master/README.md",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cache-token/cache_fee_report.git"
+  },
+  "engines": {
+    "node": ">=8"
+  },
+  "scripts": {
+    "lint": "./node_modules/.bin/eslint *.js"
+  },
+  "dependencies": {
+    "bignumber.js": "^9.0.0",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^6.2.0",
+    "memoizee": "^0.4.14",
+    "meow": "^6.1.0",
+    "moment": "^2.24.0",
+    "web3": "^1.2.6",
+    "winston": "^3.2.1"
+  },
+  "devDependencies": {
+    "eslint": "^6.8.0"
+  }
+}
