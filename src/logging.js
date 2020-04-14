@@ -6,9 +6,8 @@ let logger = winston.createLogger({
   format: winston.format.simple(),
   transports: [
     new (winston.transports.File)({
-      filename: 'deposit-report-%DATE%.log',
+      filename: 'fee-report.log',
       dirname: 'logs',
-      datePattern: 'YYYY-MM-DD',
       timestamp: true,
       colorize:  false
     }),
