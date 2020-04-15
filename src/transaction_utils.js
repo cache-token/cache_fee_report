@@ -32,7 +32,7 @@ const gbt = async(blockNum) => {
 };
 const getBlockDate = memoize(gbt);
 
-// Find nearest block to given timestamp, expect timestamp in unix time
+// Find nearest block to given date
 const getBlockByTime = async(targetDate) => {
   let targetTimestamp = dateToTimestamp(targetDate);
   let averageBlockTime = 13.5;
