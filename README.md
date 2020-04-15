@@ -2,10 +2,18 @@
 
 Given a list of addresses, report all token fees paid (transfer and storage) in CACHE Gold Token (CGT) originating from the address list (outgoing txs), or from transfers into the address list (incoming txs).
 
-### Install
+### Install from NPM
 
 ```
 npm install -g cache_fee_report
+```
+
+### Install from Source
+```
+git clone https://github.com/cache-token/cache_fee_report.git
+cd cache_fee_report
+npm install
+npm link
 ```
 
 ### Usage
