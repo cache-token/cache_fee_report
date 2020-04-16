@@ -35,6 +35,8 @@ $ cache_fee_report -h
     $ cache_fee_report sample_data/address_sample_incoming_ropsten.txt --incoming
 ```
 
+Also see [./example.sh](./example.sh)
+
 ### Output
 
 The report is generated to ./reports/out.csv
