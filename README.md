@@ -31,8 +31,8 @@ $ cache_fee_report -h
     --incoming,     -i   Report fees paid transfering into address list  (default: false)
 
   Examples
-    $ cache_fee_report sample_data/addresses_ropsten.txt --from-date 2020-02-01 --to-date 2020-04-01
-    $ cache_fee_report sample_data/addresses_incoming.txt --incoming
+    $ cache_fee_report sample_data/address_sample_outgoing_ropsten.txt --from-date 2020-02-01 --to-date 2020-04-01
+    $ cache_fee_report sample_data/address_sample_incoming_ropsten.txt --incoming
 ```
 
 ### Output

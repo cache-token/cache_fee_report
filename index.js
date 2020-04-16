@@ -6,7 +6,7 @@ module.exports = () => {
     Usage
       $ export NETWORK=<ropsten|mainnet>
       $ export INFURA_KEY=<infura key>
-      $ cache_fee_report <address file> --from-date 2020-01-01 --to-date 2020-04-01
+      $ cache_fee_report <address file> --from-date <start_date> --to-date 2020-04-01 <end_date>
 
     Options
       --from-date,    -f   Filter transfers after from this date           (default: 2014-01-01)
@@ -14,8 +14,8 @@ module.exports = () => {
       --incoming,     -i   Report fees paid transfering into address list  (default: false)
 
     Examples
-      $ cache_fee_report sample_data/addresses_ropsten.txt --from-date <start_date> --to-date <end_date>
-      $ cache_fee_report sample_data/addresses_incoming.txt --incoming
+      $ cache_fee_report sample_data/address_sample_outgoing_ropsten.txt --from-date 2020-02-01 --to-date 2020-04-01
+      $ cache_fee_report sample_data/address_sample_incoming_ropsten.txt --incoming
     `, {
     flags: {
       'from-date': {
