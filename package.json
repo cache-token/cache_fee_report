@@ -18,6 +18,7 @@
     "lint": "./node_modules/.bin/eslint *.js"
   },
   "dependencies": {
+    "abi-decoder": "^2.3.0",
     "bignumber.js": "^9.0.0",
     "csv-writer": "^1.6.0",
     "dotenv": "^6.2.0",

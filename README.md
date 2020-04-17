@@ -29,6 +29,7 @@ $ cache_fee_report -h
     --from-date,    -f   Filter transfers after from this date           (default: 2014-01-01)
     --to-date,      -t   Filter transfers before this date               (default: now)
     --incoming,     -i   Report fees paid transfering into address list  (default: false)
+    --out,          -o   The output filename                             (default: fee_report.csv)
 
   Examples
     $ cache_fee_report sample_data/address_sample_outgoing_ropsten.txt --from-date 2020-02-01 --to-date 2020-04-01
@@ -39,4 +40,4 @@ Also see [./example.sh](./example.sh)
 
 ### Output
 
-The report is generated to ./reports/out.csv
+The report is generated to ./fee_report.csv

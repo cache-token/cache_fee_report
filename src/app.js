@@ -11,33 +11,86 @@ const TOKEN = new BigNumber(10.0**8);
 const contract = utils.getCacheContractObject();
 const FEE_ADDR = process.env.FEE_ADDR;
 
+// Set BigNumber to round down
+BigNumber.config({ ROUNDING_MODE: BigNumber.ROUND_DOWN })
+
+
 // Globals to be filled in
 var totalFees = new BigNumber(0);
+var tfeeDiv;
+var txidSeen = new Set();
+var csvWriter;
+var outFile;
 
-const csvWriter = createCsvWriter({
-  path: 'reports/out.csv',
-  header: [
-    {id: 'txid', title: 'txid'},
-    {id: 'address', title: 'address'},
-    {id: 'amount', title: 'amount'},
-    {id: 'blockNum', title: 'blockNum'},
-    {id: 'time', title: 'time'},
-  ]
-});
+// Transfer Fee Divisor
+const transferFeeDiv = async() => {
+  // transfer fee bips
+  let tf_bps = await contract.methods.transferFeeBasisPoints().call();
+  // divisor = 10000 / tf_bps
+  return BigNumber(10000).div(tf_bps);
+}
+
+// Parse tx logs for the sender / receiver in a transaction
+// and figure out the relative storage / transfer fee paid
+const parseFees = (eventinfo) => {
+  let primary;
+  let non_primary = [];
+  for (let e of eventinfo) {
+    if (e.name === 'Transfer' &&
+        e.address.toLowerCase() === process.env.CONTRACT_HASH.toLowerCase()) {
+      let pair = {}
+      for (let item of e.events) {
+        pair[item.name] = item.value;
+      }
+      if (pair.to.toLowerCase() !== FEE_ADDR.toLowerCase()) {
+        primary = pair;
+      } else {
+        non_primary.push(pair);
+      }
+    }
+  }
+  let txFee = BigNumber(primary.value).div(tfeeDiv).toFixed(0);
+  let stats = {}
+  for (let t of non_primary) {
+    if (t.from.toLowerCase() === primary.from.toLowerCase()) {
+      let storageFee = BigNumber(t.value).minus(txFee).toFixed(0);
+      stats.sender = { 'addr': t.from, 'transfer': txFee, 'storage': storageFee }
+    } else {
+      stats.receiver = {'addr': t.from, 'storage': t.value }
+    }
+  }
+
+  if (!stats.hasOwnProperty('sender')) {
+    stats.sender = { 'addr': primary.from, 'transfer': 0, 'storage': 0 }
+  }
+
+  if (!stats.hasOwnProperty('receiver')) {
+    stats.receiver = { 'addr': primary.to, 'transfer': 0, 'storage': 0 }
+  }
+
+  return stats;
+}
 
 const processTransfer = async(transfer) => {
-  if (transfer.returnValues.to === FEE_ADDR) {
+  if (transfer.returnValues.to.toLowerCase() === FEE_ADDR.toLowerCase()) {
     let amount = transfer.returnValues.value;
     let from = transfer.returnValues.from;
     let blockDate = await utils.getBlockDate(transfer.blockNumber);
     logger.debug(from + " sent " + amount + " in token fees in tx " + transfer.transactionHash);
     totalFees = totalFees.plus(new BigNumber(amount));
+
+    let txinfo = await utils.getTransaction(transfer.transactionHash);
+    //logger.info("txinfo " + JSON.stringify(txinfo, null, 4));
+    let feeStats = await parseFees(txinfo.decoded);
+
     const data = [{
-      address: from,
-      amount: amount,
+      txid: transfer.transactionHash,
       blockNum: transfer.blockNumber,
       time: blockDate,
-      txid: transfer.transactionHash
+      address: from,
+      total_fee: amount,
+      transaction_fee: feeStats.sender.transfer,
+      storage_fee: feeStats.sender.storage
     }];
     await csvWriter.writeRecords(data);
   }
@@ -89,7 +142,7 @@ const rescanTransfers = async(addrs, fromBlock, toBlock, incoming) => {
     }
 
     logger.info("A total of " + totalFees.div(TOKEN).toString() + " CGT were paid in fees from address list during this period.");
-    logger.info("\n\nSee reports/out.csv");
+    logger.info("\n\nSee " + outFile);
     process.exit();
   });
 };
@@ -103,6 +156,7 @@ const run = async(address_file, args) => {
   let startDate = new Date(args.fromDate);
   let endDate = new Date(args.toDate);
   let incoming = args.incoming;
+  outFile = args.out;
 
   // Add a day to end date, to make it inclusive of that day
   endDate.setDate(endDate.getDate() + 1);
@@ -120,6 +174,20 @@ const run = async(address_file, args) => {
               startBlockNum + " (" + startBlockTime + ")" + " to " +
               endBlockNum + " (" + endBlockTime + ")");
 
+  csvWriter = createCsvWriter({
+    path: outFile,
+    header: [
+      {id: 'txid', title: 'txid'},
+      {id: 'blockNum', title: 'blockNum'},
+      {id: 'time', title: 'time'},
+      {id: 'address', title: 'address'},
+      {id: 'total_fee', title: 'total_fee'},
+      {id: 'transaction_fee', title: 'transaction_fee'},
+      {id: 'storage_fee', title: 'storage_fee'},
+    ]
+  });
+
+  tfeeDiv = await transferFeeDiv();
   await rescanTransfers(addrs, startBlockNum, endBlockNum, incoming);
 
 

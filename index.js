@@ -12,6 +12,7 @@ module.exports = () => {
       --from-date,    -f   Filter transfers after from this date           (default: 2014-01-01)
       --to-date,      -t   Filter transfers before this date               (default: now)
       --incoming,     -i   Report fees paid transfering into address list  (default: false)
+      --out,          -o   The output filename                             (default: fee_report.csv)
 
     Examples
       $ cache_fee_report sample_data/address_sample_outgoing_ropsten.txt --from-date 2020-02-01 --to-date 2020-04-01
@@ -27,6 +28,11 @@ module.exports = () => {
         type: 'string',
         alias: 't',
         default: (moment().subtract(60, 'seconds')).toString()
+      },
+      'out': {
+        type: 'string',
+        alias: '0',
+        default: 'fee_report.csv'
       },
       incoming: {
         type: 'boolean',

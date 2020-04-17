@@ -1,4 +1,5 @@
 'use strict';
+const abiDecoder = require('abi-decoder'); // NodeJS
 const fs = require('fs');
 const memoize = require("memoizee");
 const moment = require('moment');
@@ -13,6 +14,7 @@ const getCacheContractObject = () => {
   let contractHash = getContractHash();
   const abi_file = path.join(__dirname, '..', 'abi', 'CacheGold.json');
   const parsed = JSON.parse(fs.readFileSync(abi_file));
+  abiDecoder.addABI(parsed.abi);
   return (new web3.eth.Contract(parsed.abi, contractHash));
 };
 
@@ -54,10 +56,24 @@ const getBlockByTime = async(targetDate) => {
   return block;
 };
 
+const decodeTxData = (data) => {
+    return abiDecoder.decodeLogs(data);
+};
+
+const getTx = async(txid) => {
+  let txinfo = await web3.eth.getTransactionReceipt(txid);
+  txinfo.decoded = decodeTxData(txinfo.logs);
+  return txinfo;
+};
+
+const getTransaction = memoize(getTx);
+
+
 module.exports = {
   getCacheContractObject,
   timestampToDate,
   dateToTimestamp,
   getBlockByTime,
-  getBlockDate
+  getBlockDate,
+  getTransaction
 };
