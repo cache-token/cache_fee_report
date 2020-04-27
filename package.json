@@ -1,6 +1,6 @@
 {
   "name": "cache_fee_report",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Generate report of CACHE Gold Token fees paid for list of addresses",
   "license": "MIT",
   "bin": {

@@ -27,9 +27,15 @@ const dateToTimestamp = (date) => {
   return moment(date).unix();
 };
 
+// Memoize getting block
+const gb = async(blockNum) => {
+  return await web3.eth.getBlock(blockNum);
+};
+const getBlock = memoize(gb);
+
 // Memoize getting block timestamp
 const gbt = async(blockNum) => {
-  let block = await web3.eth.getBlock(blockNum);
+  let block = await getBlock(blockNum);
   return timestampToDate(block.timestamp);
 };
 const getBlockDate = memoize(gbt);
@@ -73,6 +79,7 @@ module.exports = {
   getCacheContractObject,
   timestampToDate,
   dateToTimestamp,
+  getBlock,
   getBlockByTime,
   getBlockDate,
   getTransaction

@@ -3,6 +3,7 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const fs = require('fs');
 const BigNumber = require('bignumber.js');
 
+const balance_client = require('./balance_client.js');
 const logger = require('./logging.js');
 const utils = require('./transaction_utils.js');
 
@@ -18,7 +19,6 @@ BigNumber.config({ ROUNDING_MODE: BigNumber.ROUND_DOWN })
 // Globals to be filled in
 var totalFees = new BigNumber(0);
 var tfeeDiv;
-var txidSeen = new Set();
 var csvWriter;
 var outFile;
 
@@ -28,7 +28,7 @@ const transferFeeDiv = async() => {
   let tf_bps = await contract.methods.transferFeeBasisPoints().call();
   // divisor = 10000 / tf_bps
   return BigNumber(10000).div(tf_bps);
-}
+};
 
 // Parse tx logs for the sender / receiver in a transaction
 // and figure out the relative storage / transfer fee paid
@@ -38,7 +38,7 @@ const parseFees = (eventinfo) => {
   for (let e of eventinfo) {
     if (e.name === 'Transfer' &&
         e.address.toLowerCase() === process.env.CONTRACT_HASH.toLowerCase()) {
-      let pair = {}
+      let pair = {};
       for (let item of e.events) {
         pair[item.name] = item.value;
       }
@@ -49,23 +49,30 @@ const parseFees = (eventinfo) => {
       }
     }
   }
+
+  // Only happens if someone does a transfer to the fee address
+  // Just ignore this case
+  if (typeof primary === 'undefined') {
+    return null;
+  }
+
   let txFee = BigNumber(primary.value).div(tfeeDiv).toFixed(0);
-  let stats = {}
+  let stats = {};
   for (let t of non_primary) {
     if (t.from.toLowerCase() === primary.from.toLowerCase()) {
       let storageFee = BigNumber(t.value).minus(txFee).toFixed(0);
-      stats.sender = { 'addr': t.from, 'transfer': txFee, 'storage': storageFee }
+      stats.sender = { 'addr': t.from, 'transfer': txFee, 'storage': storageFee };
     } else {
-      stats.receiver = {'addr': t.from, 'storage': t.value }
+      stats.receiver = {'addr': t.from, 'storage': t.value };
     }
   }
 
   if (!stats.hasOwnProperty('sender')) {
-    stats.sender = { 'addr': primary.from, 'transfer': 0, 'storage': 0 }
+    stats.sender = { 'addr': primary.from, 'transfer': 0, 'storage': 0 };
   }
 
   if (!stats.hasOwnProperty('receiver')) {
-    stats.receiver = { 'addr': primary.to, 'transfer': 0, 'storage': 0 }
+    stats.receiver = { 'addr': primary.to, 'transfer': 0, 'storage': 0 };
   }
 
   return stats;
@@ -83,6 +90,10 @@ const processTransfer = async(transfer) => {
     //logger.info("txinfo " + JSON.stringify(txinfo, null, 4));
     let feeStats = await parseFees(txinfo.decoded);
 
+    if (!feeStats) {
+      return;
+    }
+
     const data = [{
       txid: transfer.transactionHash,
       blockNum: transfer.blockNumber,
@@ -96,7 +107,99 @@ const processTransfer = async(transfer) => {
   }
 };
 
-const rescanTransfers = async(addrs, fromBlock, toBlock, incoming) => {
+const getEvents = (options) => {
+  return new Promise( (resolve, reject) => {
+    contract.getPastEvents('Transfer', options, async(error, events) => {
+      if (error) {
+        logger.error(error);
+        return reject(error);
+      }
+      return resolve(events);
+    });
+  });
+};
+
+const balance = async(addr, blockNum) => {
+  let b = await balance_client.getBalance(addr, blockNum);
+  return BigNumber(b);
+};
+
+const balanceEvent = async(addr, blockNum) => {
+  return await balance_client.getEvent(addr, blockNum);
+};
+
+const scanBalance = async(addrs, fromBlock, fromBlockTime, toBlock, toBlockTime) => {
+
+  for (let addr of addrs) {
+    let startBalance = BigNumber(0);
+    let startEvent = await balanceEvent(addr, fromBlock);
+    if (startEvent.balance) {
+      startBalance = BigNumber(startEvent.balance);
+    }
+
+    const incoming_options = {
+      fromBlock: fromBlock,
+      toBlock: toBlock,
+      filter: {
+        to: [addr]
+      }
+    };
+    const outgoing_options = {
+      fromBlock: fromBlock,
+      toBlock: toBlock,
+      filter: {
+        from: [addr]
+      }
+    };
+    const incoming_events = await getEvents(incoming_options);
+    const outgoing_events = await getEvents(outgoing_options);
+    const incoming_blockNums = new Set(incoming_events.map(e => e.blockNumber));
+    const outgoing_blockNums = new Set(outgoing_events.map(e => e.blockNumber));
+    const blockNums = new Set([...incoming_blockNums, ...outgoing_blockNums]);
+    logger.debug(addr + " had a balance change on " + blockNums.size + " blocks");
+    const total_time = (toBlockTime - fromBlockTime);
+
+    let lastTime = fromBlockTime;
+    let lastBlock = fromBlock;
+    let lastBalance = startBalance;
+    let avg = BigNumber(0);
+    blockNums.add(toBlock);
+    for (let blockNum of Array.from(blockNums).sort()) {
+      let newBalanceEvent = await balanceEvent(addr, blockNum);
+      let timestamp = newBalanceEvent.timestamp;
+      if (!timestamp) {
+        // Should only happen on last item
+        let block = await utils.getBlock(blockNum);
+        timestamp = block.timestamp;
+      }
+      let time_diff = timestamp - lastTime;
+      let perc = BigNumber(time_diff).div(total_time);
+      avg = avg.plus(lastBalance.times(perc));
+     // console.log("Balance " + lastBalance.toString() + " from " + lastTime + " to " + timestamp + " (" + perc.times(100).toFixed(2) + " percent of time)");
+      let data = [{
+        addr: addr,
+        fromBlock: lastBlock,
+        toBlock: blockNum,
+        timespan: time_diff,
+        balance: lastBalance,
+        percent: perc.times(100).toFixed(6)
+      }];
+      await csvWriter.writeRecords(data);
+
+      lastBalance = BigNumber(newBalanceEvent.balance);
+      lastTime = timestamp;
+      lastBlock = blockNum;
+    }
+    logger.info(addr + " average balance during this period was " + avg.div(TOKEN).toFixed(8) + " CGT");
+    let data = [{ addr: addr, avg: avg.div(TOKEN).toString() }];
+    await csvWriter.writeRecords(data);
+  }
+
+  logger.info("Done.\n\nSee " + outFile);
+  process.exit();
+};
+
+const scanFees = async(addrs, fromBlock, toBlock, incoming) => {
 
   var from_filter;
   // If incoming flag set, need to figure out the list of addresses
@@ -110,15 +213,10 @@ const rescanTransfers = async(addrs, fromBlock, toBlock, incoming) => {
         to: addrs
       }
     };
-    contract.getPastEvents('Transfer', options, async(error, events) => {
-      if (error) {
-        logger.error(error);
-        process.exit();
-      }
-      logger.info("Detected " + events.length + " transfers to incoming address list");
-      from_filter = Array.from(new Set(events.map(e => e.returnValues.from)));
-      logger.info("There were " + addrs.length + " unqiue addresses transfering to incoming address list");
-    });
+    let events =  await getEvents(options);
+    logger.info("Detected " + events.length + " transfers to incoming address list");
+    from_filter = Array.from(new Set(events.map(e => e.returnValues.from)));
+    logger.info("There were " + addrs.length + " unqiue addresses transfering to incoming address list");
   } else {
     from_filter = addrs;
   }
@@ -131,20 +229,15 @@ const rescanTransfers = async(addrs, fromBlock, toBlock, incoming) => {
       to: [FEE_ADDR]
     }
   };
-  contract.getPastEvents('Transfer', options, async(error, events) => {
-    if (error) {
-      logger.error(error);
-      process.exit();
-    }
-    logger.info("There were " + events.length + " transfers to fee address from associated address list.");
-    for (let e of events) {
-      await processTransfer(e);
-    }
+  let events = await getEvents(options);
+  logger.info("There were " + events.length + " transfers to fee address from associated address list.");
+  for (let e of events) {
+    await processTransfer(e);
+  }
 
-    logger.info("A total of " + totalFees.div(TOKEN).toString() + " CGT were paid in fees from address list during this period.");
-    logger.info("\n\nSee " + outFile);
-    process.exit();
-  });
+  logger.info("A total of " + totalFees.div(TOKEN).toString() + " CGT were paid in fees from address list during this period.");
+  logger.info("\n\nSee " + outFile);
+  process.exit();
 };
 
 const parseAddresses = (file) => {
@@ -156,6 +249,7 @@ const run = async(address_file, args) => {
   let startDate = new Date(args.fromDate);
   let endDate = new Date(args.toDate);
   let incoming = args.incoming;
+  let balance = args.balance;
   outFile = args.out;
 
   // Add a day to end date, to make it inclusive of that day
@@ -174,22 +268,36 @@ const run = async(address_file, args) => {
               startBlockNum + " (" + startBlockTime + ")" + " to " +
               endBlockNum + " (" + endBlockTime + ")");
 
-  csvWriter = createCsvWriter({
-    path: outFile,
-    header: [
-      {id: 'txid', title: 'txid'},
-      {id: 'blockNum', title: 'blockNum'},
-      {id: 'time', title: 'time'},
-      {id: 'address', title: 'address'},
-      {id: 'total_fee', title: 'total_fee'},
-      {id: 'transaction_fee', title: 'transaction_fee'},
-      {id: 'storage_fee', title: 'storage_fee'},
-    ]
-  });
-
   tfeeDiv = await transferFeeDiv();
-  await rescanTransfers(addrs, startBlockNum, endBlockNum, incoming);
-
+  if (balance) {
+    csvWriter = createCsvWriter({
+      path: outFile,
+      header: [
+        {id: 'addr', title: 'Address'},
+        {id: 'fromBlock', title: 'From Block Number'},
+        {id: 'toBlock', title: 'To Block Number'},
+        {id: 'timespan', title: 'Timespan in Seconds'},
+        {id: 'balance', title: 'Balance at Block'},
+        {id: 'percent', title: 'Percent of Time At Balance'},
+        {id: 'avg', title: 'Average Balance'}
+      ]
+    });
+    await scanBalance(addrs, startBlockNum, startBlock.timestamp, endBlockNum, endBlock.timestamp);
+  } else {
+    csvWriter = createCsvWriter({
+      path: outFile,
+      header: [
+        {id: 'txid', title: 'txid'},
+        {id: 'blockNum', title: 'blockNum'},
+        {id: 'time', title: 'time'},
+        {id: 'address', title: 'address'},
+        {id: 'total_fee', title: 'total_fee'},
+        {id: 'transaction_fee', title: 'transaction_fee'},
+        {id: 'storage_fee', title: 'storage_fee'},
+      ]
+    });
+    await scanFees(addrs, startBlockNum, endBlockNum, incoming);
+  }
 
 };
 
