@@ -179,9 +179,11 @@ const scanBalance = async(addrs, fromBlock, fromBlockTime, toBlock, toBlockTime)
       let data = [{
         addr: addr,
         fromBlock: lastBlock,
+        fromTime: utils.timestampToDate(lastTime),
         toBlock: blockNum,
+        toTime: utils.timestampToDate(timestamp),
         timespan: time_diff,
-        balance: lastBalance,
+        balance: lastBalance.div(TOKEN).toFixed(8),
         percent: perc.times(100).toFixed(6)
       }];
       await csvWriter.writeRecords(data);
@@ -252,9 +254,6 @@ const run = async(address_file, args) => {
   let balance = args.balance;
   outFile = args.out;
 
-  // Add a day to end date, to make it inclusive of that day
-  endDate.setDate(endDate.getDate() + 1);
-
   const startBlock = (await utils.getBlockByTime(startDate));
   const endBlock = (await utils.getBlockByTime(endDate));
   const startBlockNum = startBlock.number;
@@ -275,7 +274,9 @@ const run = async(address_file, args) => {
       header: [
         {id: 'addr', title: 'Address'},
         {id: 'fromBlock', title: 'From Block Number'},
+        {id: 'fromTime', title: 'From Time'},
         {id: 'toBlock', title: 'To Block Number'},
+        {id: 'toTime', title: 'To Time'},
         {id: 'timespan', title: 'Timespan in Seconds'},
         {id: 'balance', title: 'Balance at Block'},
         {id: 'percent', title: 'Percent of Time At Balance'},

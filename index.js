@@ -20,7 +20,7 @@ module.exports = () => {
     Examples
       $ cache_fee_report sample_data/address_sample_outgoing_ropsten.txt --from-date 2020-02-01 --to-date 2020-04-01
       $ cache_fee_report sample_data/address_sample_incoming_ropsten.txt --incoming
-      $ cache_fee_report sample_data/address_sample_balance_ropsten.txt --balance
+      $ cache_fee_report sample_data/address_sample_balance_ropsten.txt --balance --from-date 2020-02-01 --to-date 2020-04-01
     `, {
     flags: {
       'from-date': {

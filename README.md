@@ -1,6 +1,12 @@
-# Fee Report
+# CACHE Gold Reports
+
+## Fee Report
 
 Given a list of addresses, report all token fees paid (transfer and storage) in CACHE Gold Token (CGT) originating from the address list (outgoing txs), or from transfers into the address list (incoming txs).
+
+## Balance Report
+
+List the time weighted average balance of an address over a fixed time period.
 
 ### Install from NPM
 
@@ -37,11 +43,11 @@ $ cache_fee_report -h
   Examples
     $ cache_fee_report sample_data/address_sample_outgoing_ropsten.txt --from-date 2020-02-01 --to-date 2020-04-01
     $ cache_fee_report sample_data/address_sample_incoming_ropsten.txt --incoming
-    $ cache_fee_report sample_data/address_sample_balance_ropsten.txt --balance
+    $ cache_fee_report sample_data/address_sample_balance_ropsten.txt --balance --from-date 2020-02-01 --to-date 2020-04-01
 ```
 
 Also see [./example.sh](./example.sh)
 
 ### Output
 
-The report is generated to ./report.csv
+The final report is generated to ./report.csv
